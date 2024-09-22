@@ -35,32 +35,58 @@
             color: #6c757d;
             margin-top: 50px;
         }
+        /* Spinner hidden by default */
+        #loading-spinner {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1 class="text-center">Employee Feedback Summarization</h1>
-    <p class="text-muted text-center">Automatically extract common themes and sentiments from free-text feedback</p>
+    <h1 class="text-center">Feedback Summarization</h1>
+    <p class="text-muted text-center">Extract top keywords, analyze sentiment, and summarize feedback</p>
 
     <div class="card shadow-sm">
         <div class="card-body">
             <form id="feedback-form">
                 <div class="mb-3">
                     <label for="feedback" class="form-label">Enter Feedback</label>
-                    <textarea name="feedback" id="feedback" rows="6" class="form-control" placeholder="Type employee or manager feedback here..."></textarea>
+                    <textarea name="feedback" id="feedback" rows="6" class="form-control" placeholder="Type feedback here..."></textarea>
                 </div>
                 <div class="d-grid">
-                    <button type="submit" class="btn btn-custom btn-lg">Summarize Feedback</button>
+                    <button type="submit" class="btn btn-custom btn-lg">Process Feedback</button>
                 </div>
             </form>
         </div>
     </div>
 
+    <!-- Loading Spinner -->
+    <div id="loading-spinner">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Processing your feedback...</p>
+    </div>
+
+    <!-- Result Section -->
     <div id="summary-result" class="card shadow-sm d-none">
         <div class="card-body">
-            <h2>Common Themes:</h2>
-            <ul id="summary-list" class="list-group"></ul>
+            <h2>Processing Results:</h2>
+            
+            <h4>Detected Language:</h4>
+            <p id="language"></p>
+
+            <h4>Top Keywords:</h4>
+            <ul id="keywords" class="list-group"></ul>
+
+            <h4>Sentiment Analysis:</h4>
+            <p id="sentiment"></p>
+
+            <h4>Summary:</h4>
+            <p id="summary"></p>
         </div>
     </div>
 </div>
@@ -75,30 +101,49 @@
 <!-- Custom JavaScript -->
 <script>
     const form = document.getElementById('feedback-form');
+    const spinner = document.getElementById('loading-spinner');
+    const resultCard = document.getElementById('summary-result');
+
     form.onsubmit = async (event) => {
         event.preventDefault();
+        
+        // Show the loading spinner and hide the result card
+        spinner.style.display = 'block';
+        resultCard.classList.add('d-none');
+        
         const formData = new FormData(form);
         const response = await fetch('/summarize', {
             method: 'POST',
             body: formData
         });
         const data = await response.json();
-        const summaryResult = document.getElementById('summary-result');
-        const summaryList = document.getElementById('summary-list');
-        
+
         // Clear previous results
-        summaryList.innerHTML = '';
-        
-        // Show new results
+        document.getElementById('language').innerHTML = '';
+        document.getElementById('keywords').innerHTML = '';
+        document.getElementById('sentiment').innerHTML = '';
+        document.getElementById('summary').innerHTML = '';
+
+        // Display detected language
+        document.getElementById('language').innerText = `Language: ${data.language}`;
+
+        // Display top keywords with frequencies
         data.top_keywords.forEach(keyword => {
             const listItem = document.createElement('li');
             listItem.className = 'list-group-item';
-            listItem.innerText = `${keyword}`;
-            summaryList.appendChild(listItem);
+            listItem.innerText = `${keyword[0]}: ${keyword[1]} times`;
+            document.getElementById('keywords').appendChild(listItem);
         });
 
-        // Show the result card
-        summaryResult.classList.remove('d-none');
+        // Display sentiment analysis
+        document.getElementById('sentiment').innerHTML = `Sentiment: ${data.sentiment.label} (Confidence: ${(data.sentiment.score * 100).toFixed(2)}%)`;
+
+        // Display summary
+        document.getElementById('summary').innerText = data.summary;
+
+        // Hide the loading spinner and show the result card
+        spinner.style.display = 'none';
+        resultCard.classList.remove('d-none');
     };
 </script>
 </body>

@@ -1,0 +1,10 @@
+# Ignore Hugging Face transformers cache
+~/.cache/huggingface
+~/.cache/transformers
+
+# Ignore virtual environment (if you have one)
+venv/
+
+# Ignore any other downloaded models or data
+models/
+checkpoints/
