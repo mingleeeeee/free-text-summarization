@@ -11,11 +11,11 @@ app = Flask(__name__)
 nlp_en = spacy.load("en_core_web_sm")  # English
 nlp_ja = spacy.load("ja_core_news_sm")  # Japanese
 
-# Initialize sentiment analysis with XLM-Roberta
-sentiment_pipeline = pipeline("sentiment-analysis", model="cardiffnlp/twitter-xlm-roberta-base-sentiment")
+# Initialize sentiment analysis with a smaller, optimized model (distilbert)
+sentiment_pipeline = pipeline("sentiment-analysis", model="distilbert-base-uncased")
 
 # Initialize mBART for summarization (multilingual)
-mbart_tokenizer = MBart50Tokenizer.from_pretrained("facebook/mbart-large-50-many-to-many-mmt")
+mbart_tokenizer = MBart50Tokenizer.from_pretrained("facebook/mbart-large-50-many-to-many-mmt", use_fast=True)
 mbart_model = MBartForConditionalGeneration.from_pretrained("facebook/mbart-large-50-many-to-many-mmt")
 
 # Initialize BART for summarization (English only)
@@ -46,10 +46,20 @@ def extract_top_keywords(text, lang_code, n=10):
     
     return top_keywords
 
-# Sentiment analysis function
+# Sentiment analysis function using distilbert for faster processing
 def analyze_sentiment(text):
     result = sentiment_pipeline(text)
-    return result[0]  # Return sentiment label and score
+    label_mapping = {
+        "LABEL_0": "Negative",
+        "LABEL_1": "Neutral",
+        "LABEL_2": "Positive"
+    }
+    
+    # Map the model label to sentiment
+    sentiment_label = label_mapping.get(result[0]['label'], "Unknown")
+    sentiment_score = result[0]['score']
+    
+    return {"label": sentiment_label, "score": sentiment_score}
 
 # Summarization function using BART (English only)
 def summarize_text_with_bart(text):
@@ -66,10 +76,7 @@ def summarize_text_with_mbart(text, lang_code):
     elif lang_code == 'ja':
         lang_code = 'ja_XX'
     else:
-        print(f"Unsupported language code: {lang_code}")
         return "Unsupported language"
-
-    print(f"Summarizing text in language: {lang_code}")
 
     mbart_tokenizer.src_lang = lang_code
     inputs = mbart_tokenizer(text, return_tensors="pt", max_length=1024, truncation=True)
