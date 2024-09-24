@@ -11,10 +11,11 @@ app = Flask(__name__)
 nlp_en = spacy.load("en_core_web_sm")  # English
 nlp_ja = spacy.load("ja_core_news_sm")  # Japanese
 
-# Initialize sentiment analysis with a smaller, optimized model (distilbert)
-sentiment_pipeline = pipeline("sentiment-analysis", model="distilbert-base-uncased")
+# Initialize sentiment analysis pipelines with optimized models
+sentiment_pipeline_en = pipeline("sentiment-analysis", model="distilbert-base-uncased", use_fast=True)  # English
+sentiment_pipeline_ja = pipeline("sentiment-analysis", model="cl-tohoku/bert-base-japanese", use_fast=True)  # Japanese
 
-# Initialize mBART for summarization (multilingual)
+# Initialize mBART for summarization (multilingual, optimized with fast tokenizer)
 mbart_tokenizer = MBart50Tokenizer.from_pretrained("facebook/mbart-large-50-many-to-many-mmt", use_fast=True)
 mbart_model = MBartForConditionalGeneration.from_pretrained("facebook/mbart-large-50-many-to-many-mmt")
 
@@ -46,16 +47,22 @@ def extract_top_keywords(text, lang_code, n=10):
     
     return top_keywords
 
-# Sentiment analysis function using distilbert for faster processing
-def analyze_sentiment(text):
-    result = sentiment_pipeline(text)
+# Sentiment analysis function with language-specific models
+def analyze_sentiment(text, lang_code):
+    if lang_code == 'en':
+        result = sentiment_pipeline_en(text)
+    elif lang_code == 'ja':
+        result = sentiment_pipeline_ja(text)
+    else:
+        return {"label": "Unsupported language", "score": 0.0}
+    
+    # Mapping the labels for easier interpretation
     label_mapping = {
         "LABEL_0": "Negative",
         "LABEL_1": "Neutral",
         "LABEL_2": "Positive"
     }
     
-    # Map the model label to sentiment
     sentiment_label = label_mapping.get(result[0]['label'], "Unknown")
     sentiment_score = result[0]['score']
     
@@ -63,7 +70,7 @@ def analyze_sentiment(text):
 
 # Summarization function using BART (English only)
 def summarize_text_with_bart(text):
-    inputs = bart_tokenizer(text, return_tensors="pt", max_length=1024, truncation=True)
+    inputs = bart_tokenizer(text, return_tensors="pt", max_length=512, truncation=True)  # Limit input length
     summary_ids = bart_model.generate(inputs["input_ids"], max_length=150, min_length=40, length_penalty=2.0, num_beams=4, early_stopping=True)
     summary = bart_tokenizer.decode(summary_ids[0], skip_special_tokens=True)
     return summary
@@ -79,7 +86,7 @@ def summarize_text_with_mbart(text, lang_code):
         return "Unsupported language"
 
     mbart_tokenizer.src_lang = lang_code
-    inputs = mbart_tokenizer(text, return_tensors="pt", max_length=1024, truncation=True)
+    inputs = mbart_tokenizer(text, return_tensors="pt", max_length=512, truncation=True)  # Limit input length
 
     summary_ids = mbart_model.generate(inputs["input_ids"], max_length=150, min_length=40, length_penalty=2.0, num_beams=4, early_stopping=True)
     summary = mbart_tokenizer.decode(summary_ids[0], skip_special_tokens=True)
@@ -99,7 +106,7 @@ def summarize():
         top_keywords = extract_top_keywords(feedback_text, lang_code)
 
         # Analyze sentiment
-        sentiment = analyze_sentiment(feedback_text)
+        sentiment = analyze_sentiment(feedback_text, lang_code)
 
         # Summarize the text
         if lang_code == 'en':  # Use BART for English
